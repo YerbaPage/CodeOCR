@@ -1,0 +1,46 @@
+def _get_eigensystem(self):
+    if not self._is_dirty:
+        return (self._eigenvalues,
+                self._left_eigenvectors,
+                self._right_eigenvectors)
+    n_timescales = min(self.n_timescales if self.n_timescales is not None
+                       else self.n_states_ - 1, self.n_states_ - 1)
+    k = n_timescales + 1
+    u, lv, rv = _solve_msm_eigensystem(self.transmat_, k)
+
+    lv = np.real_if_close(lv, tol=1000).astype(float)
+    rv = np.real_if_close(rv, tol=1000).astype(float)
+    self._eigenvalues = u
+    self._left_eigenvectors = lv
+    self._right_eigenvectors = rv
+    self._is_dirty = False
+    return u, lv, rv
+
+def eigenvalues_(self):
+    """Eigenvalues of the transition matrix.
+    """
+    u, lv, rv = self._get_eigensystem()
+    return u
+
+def timescales_(self):
+    """Implied relaxation timescales of the model.
+    The relaxation of any initial distribution towards equilibrium is
+    given, according to this model, by a sum of terms --each corresponding
+    to the relaxation along a specific direction (eigenvector) in state
+    space -- which decay exponentially in time. See equation 19. from [1].
+    Returns
+    -------
+    timescales : array-like, shape = (n_timescales,)
+        The longest implied relaxation timescales of the model, expressed
+        in units of time-step between indices in the source data supplied
+        to ``fit()``.
+    References
+    ----------
+    .. [1] Prinz, Jan-Hendrik, et al.\"Markov models of molecular kinetics:
+    Generation and validation.\"J. Chem. Phys. 134.17 (2011): 174105.
+    """
+    u, lv, rv = self._get_eigensystem()
+    
+    with np.errstate(invalid='ignore', divide='ignore'):
+        timescales = - self.lag_time / np.log(u[1:])
+    return timescales
