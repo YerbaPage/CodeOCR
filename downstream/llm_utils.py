@@ -17,7 +17,7 @@ except ImportError:
     TRANSFORMERS_AVAILABLE = False
 
 # API Configuration
-API_BASE_URL = "https://aihubmix.com/v1"
+API_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
 RETRY = 20
 
 

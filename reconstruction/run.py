@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Refactored entry point for the Gemini CodeOCR pipeline.
-The monolithic logic has been moved to the `gemini_pipeline` package.
+Entry point for Code Reconstruction task (RQ5).
+Runs OCR inference and evaluation pipeline.
 """
 
 import sys

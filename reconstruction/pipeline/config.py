@@ -24,14 +24,14 @@ TARGET_RATIOS = [1, 1.5, 2, 4, 6, 8]  # Target compression ratios
 # ================= Module 3 Config (Inference Engine) =================
 # Use Gemini (via the aihubmix OpenAI-compat endpoint)
 RUN_MODULE_3 = _env_bool("RUN_MODULE_3", True)
-AIHUBMIX_BASE_URL = "https://aihubmix.com/v1"
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1").strip()
 GEMINI_MODEL_NAME = "gpt-5.1-2025-11-13"  # 🌟 Set the Gemini model name
 
 # ================= Client Config =================
 # CLIENT_TYPE: "Azure" uses AzureOpenAI; other values use the default OpenAI client
 CLIENT_TYPE = os.getenv("CLIENT_TYPE", "").strip()
 # Azure settings
-AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT", "https://genai-sg-og.tiktok-row.org/gpt/openapi/online/v2/crawl").strip()
+AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT", "").strip()
 AZURE_API_VERSION = os.getenv("AZURE_API_VERSION", "2024-03-01-preview").strip()
 OCR_SYSTEM_PROMPT = "You are an OCR engine for code images."
 OCR_USER_PROMPT = (

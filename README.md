@@ -4,22 +4,39 @@ This repository contains the official implementation for the paper **"Seeing is 
 
 ## Introduction
 
-Large Language Models (LLMs) have achieved remarkable success in source code understanding, yet as software systems grow in scale, computational efficiency has become a critical bottleneck. This paper explores the feasibility of representing source code as rendered images to optimization efficiency through "optical compression". We evaluate state-of-the-art MLLMs across multiple downstream tasks to demonstrate the effectiveness of this paradigm.
+Large Language Models (LLMs) have achieved remarkable success in source code understanding, yet as software systems grow in scale, computational efficiency has become a critical bottleneck. This paper explores the feasibility of representing source code as rendered images to optimize efficiency through "optical compression". We evaluate state-of-the-art MLLMs across multiple downstream tasks to demonstrate the effectiveness of this paradigm.
 
 ## Project Structure
 
 ```text
 CodeOCR/
-├── downstream/             # Code for downstream tasks (RQ1-RQ4)
-│   ├── standalone          # Code Clone Detection dataset
-│   ├── tasks/              # Task-specific implementations
-│   ├── run_pipeline.py     # Main entry point for experiments
-│   ├── text_to_image.py    # Code rendering utility
-│   ├── llm_utils.py        # LLM API client and utilities
-│   └──qa_dataset_test_no_comments.json # QA dataset
-├── reconstruction/         # Code for reconstruction task (RQ5)
-├── README.md               # This file
-└── requirements.txt        # Python dependencies
+├── CodeOCR/                  # Code rendering tool (modular structure)
+│   ├── __init__.py           # Main entry, exports public API
+│   ├── api.py                # Simplified API (render_code_to_images, render_and_query)
+│   ├── client.py             # LLM client (OpenAI/Azure)
+│   ├── demo.py               # CLI demo tool
+│   ├── render.py             # Full CLI tool
+│   ├── core/                 # Core modules
+│   │   ├── constants.py      # Constants
+│   │   ├── fonts.py          # Font handling
+│   │   ├── text_processing.py # Text preprocessing
+│   │   ├── syntax.py         # Syntax highlighting
+│   │   ├── rendering.py      # Image rendering
+│   │   ├── layout.py         # Layout optimization
+│   │   ├── compression.py    # Image compression
+│   │   └── tokens.py         # Token calculation
+│   └── sample.txt            # Sample code file
+├── downstream/               # Downstream tasks (RQ1-RQ4)
+│   ├── tasks/                # Task implementations
+│   ├── dataset/              # Datasets
+│   ├── run_pipeline.py       # Main entry
+│   └── llm_utils.py          # LLM utilities
+├── reconstruction/           # Code reconstruction task (RQ5)
+│   ├── run.py                # Main entry
+│   ├── pipeline/             # OCR and evaluation modules
+│   └── dataset/              # Datasets
+├── README.md
+└── requirements.txt
 ```
 
 ## Hardware Requirements
@@ -47,29 +64,89 @@ pip install -r requirements.txt
 
 To run the experiments using LLM/VLM APIs, you need to configure the API credentials.
 
-1.  Create a `config.json` file in the `downstream` directory (or set environment variables).
-2.  Example `config.json`:
-    ```json
-    {
-        "api_key": "your_api_key",
-        "base_url": "https://api.openai.com/v1",
-        "azure_endpoint": "",
-        "azure_api_version": ""
-    }
-    ```
-    *   Alternatively, set `OPENAI_API_KEY` environment variable.
-    *   Default `base_url` in code points to a proxy; change it if using official OpenAI/Azure endpoints.
+**Option 1: Environment Variables (Recommended)**
+
+```bash
+export OPENAI_API_KEY="your_api_key"
+export OPENAI_BASE_URL="https://openrouter.ai/api/v1"  # Optional, defaults to OpenRouter
+```
+
+**Option 2: Config File**
+
+Create a `config.json` file in the `downstream` directory:
+
+```json
+{
+    "api_key": "your_api_key",
+    "base_url": "https://openrouter.ai/api/v1"
+}
+```
+
+For Azure OpenAI, add:
+
+```json
+{
+    "api_key": "your_azure_key",
+    "azure_endpoint": "https://your-resource.openai.azure.com",
+    "azure_api_version": "2024-03-01-preview"
+}
+```
 
 ## Usage
 
-### Code Transformation Tool
-
-To render a text instruction as images and send it to OpenAI API with a specific compression ratio (e.g., 4x). Instruction is passed in, and code context can be passed via flag or file:
+### Quick Start (Demo)
 
 ```bash
-# Run from the project root
-cat CodeOCR/sample.txt | python CodeOCR/render_instruction_to_openai.py --resize-ratios 4 --code-context-file CodeOCR/sample.txt
+# Render code to image
+python -m CodeOCR.demo render --file example.py -o output.png
+
+# Query LLM with code image
+python -m CodeOCR.demo query --file example.py -i "Explain this code"
+
+# End-to-end: Code -> Image -> OCR -> Evaluate
+python -m CodeOCR.demo ocr --file example.py
+
+# E2E with custom ratios (render only, no API call)
+python -m CodeOCR.demo ocr --file example.py --ratios "1,2,4" --render-only
 ```
+
+### Python API
+
+```python
+from CodeOCR import render_code_to_images, call_llm_with_images, create_client
+
+code = "def hello():\n    print('world')"
+
+# Step 1: Render code to images
+images = render_code_to_images(code, language="python", theme="modern")
+images[0].save("output.png")
+
+# Step 2: Send images to LLM
+client = create_client()
+response, token_info = call_llm_with_images(
+    client,
+    model_name="gpt-5-mini",
+    images=images,
+    system_prompt="You are a helpful assistant.",
+    user_prompt="Explain this code in the image.",
+)
+print(response)
+```
+
+### Advanced CLI
+
+```bash
+# Use full CLI tool
+python -m CodeOCR.render --code-context-file example.py --instruction "Explain code" --model gpt-4o --enable-syntax-highlight
+```
+
+**Parameters:**
+- `--code-context-file`: Code file path
+- `--instruction`: Instruction
+- `--model`: Model name (default: gpt-4o)
+- `--enable-syntax-highlight`: Enable syntax highlighting
+- `--theme`: Theme (light/modern)
+- `--language`: Code language (default: python)
 
 ### RQ1-RQ4: Downstream Tasks
 
@@ -82,49 +159,37 @@ cd downstream
 **Code Completion (RAG)**
 > python dataset
 ```bash
-python -u run_pipeline.py --run-tasks --task code_completion_rag --models glm-4.6v --resize-mode --preserve-newlines
+python -u run_pipeline.py --run-tasks --task code_completion_rag --models gpt-5-mini --resize-mode --preserve-newlines
 ```
 > java dataset
 ```bash
-python -u run_pipeline.py --run-tasks --task code_completion_rag --models glm-4.6v --resize-mode --preserve-newlines --language java --dataset_path microsoft/LCC_Java
+python -u run_pipeline.py --run-tasks --task code_completion_rag --models gpt-5-mini --resize-mode --preserve-newlines --language java --dataset_path microsoft/LCC_Java
 ```
 
 **Code Question Answering (QA)**
 ```bash
-python -u ./run_pipeline.py --run-tasks --task code_qa --models glm-4.6v --resize-mode --preserve-newlines
+python -u ./run_pipeline.py --run-tasks --task code_qa --models gpt-5-mini --resize-mode --preserve-newlines
 ```
 
 **Code Clone Detection**
 > Append `--language java` (or another language) to command below to switch target language.
 ```bash
-python -u ./run_pipeline.py --run-tasks --task code_clone_detection --models glm-4.6v --resize-mode --preserve-newlines --code-clone-detection-separate-mode
+python -u ./run_pipeline.py --run-tasks --task code_clone_detection --models gpt-5-mini --resize-mode --preserve-newlines --code-clone-detection-separate-mode
 ```
 
 **Code Summarization**
 ```bash
-python -u run_pipeline.py --run-tasks --task code_summarization --models glm-4.6v --resize-mode --preserve-newlines
+python -u run_pipeline.py --run-tasks --task code_summarization --models gpt-5-mini --resize-mode --preserve-newlines
 ```
 
 ### RQ5: Code Reconstruction
 
-Navigate to the `reconstruction` directory and configure the environment variables to run the reconstruction experiments.
+Run all reconstruction experiments:
 
 ```bash
 cd reconstruction
+python run.py
 ```
 
-**Configuration & Execution**
-```bash
-export USE_EXISTING_IMAGES="1"
-export EXISTING_IMAGES_DIR="./dataset/images"
-export DATASET_FILENAME="dataset.json"
-export RUN_MODULE_3="1"
-export RUN_MODULE_4="1"
-export OCR_CONCURRENCY="4"
-export OCR_PARALLEL_MIN_INTERVAL_SECONDS="0"
-export GEMINI_ENABLE_SAFETY_SETTINGS="1"
-export OCR_PROMPT_PERSONAL_OFFLINE="1"
-
-python run_gemini.py
-```
+This runs the full pipeline: fetch code from dataset → render images → OCR → evaluate.
 
